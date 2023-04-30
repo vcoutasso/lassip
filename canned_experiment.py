@@ -154,7 +154,7 @@ if __name__ == "__main__":
         np.save(args.output, B_scan)
 
         if args.preview:
-            plt.imshow(B_scan, aspect="auto")
+            plt.imshow(np.log10(abs(B_scan) + 1), aspect="auto")
             plt.show()
 
         if args.video_out:
