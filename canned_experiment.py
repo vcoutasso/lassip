@@ -13,9 +13,9 @@ def _get_args():
     parser.add_argument(
         "--dry-run", action="store_true", help="Don't perform any simulation"
     )
-    parser.add_argument("--mu", default=200, help="Gaussian mu parameter", type=float)
+    parser.add_argument("--mu", default=100, help="Gaussian mu parameter", type=float)
     parser.add_argument(
-        "--sigma", default=6.67, help="Gaussian sigma parameter", type=float
+        "--sigma", default=4, help="Gaussian sigma parameter", type=float
     )
     parser.add_argument(
         "--show-source", help="Show gaussian source without delay", action="store_true"
@@ -26,37 +26,43 @@ def _get_args():
     parser.add_argument(
         "--preview", help="Show B-scan at the end of simulation", action="store_true"
     )
-    parser.add_argument("--grid-size", default=120, help="Square grid size", type=int)
+    parser.add_argument("--grid-size", default=300, help="Square grid size", type=int)
     parser.add_argument(
-        "--time-limit", default=1000, help="Instants of time count", type=int
+        "--time-limit", default=600, help="Instants of time count", type=int
     )
     parser.add_argument(
         "--transducer-count",
-        default=32,
+        default=100,
         help="Transducer array size. transducers are evenly distributed in a horizontal line",
         type=int,
     )
     parser.add_argument(
         "--transducer-offset",
-        default=0.2,
+        default=0.4,
         help="Transducer array y-axis offset. Percentage of N",
         type=float,
     )
     parser.add_argument(
-        "--frequency-reciprocal",
-        default=50,
-        help="Reciprocal of the gaussian source frequency",
+        "--reflector-offset",
+        default=0.5,
+        help="Reflector array y-axis offset. Percentage of N",
+        type=float,
+    )
+    parser.add_argument(
+        "--period",
+        default=40,
+        help="Period of the gaussian source frequency",
         type=int,
     )
     parser.add_argument(
         "--velocity",
-        default=0.3,
+        default=0.35,
         help="Base wave propagation velocity. Should range from 0.2 to 0.5",
         type=float,
     )
     parser.add_argument(
         "--obstacle-damping",
-        default=0.3,
+        default=0.2,
         help="Propagation velocity through the obstacle. Percentage of VELOCITY",
         type=float,
     )
@@ -66,18 +72,18 @@ def _get_args():
         help="transducer activation delay from left to right.",
         type=int,
     )
-    parser.add_argument("--gating", help="Gating threshold", type=int)
+    parser.add_argument("--gating", default=200, help="Gating threshold", type=int)
     parser.add_argument(
         "--video-out",
         action="store_true",
         help="Generate simulation videos",
     )
-    parser.add_argument(
-        "--fps",
-        default=24,
-        help="Simulation video FPS. Ignored if VIDEO-OUT is not provided",
-        type=int,
-    )
+    # parser.add_argument(
+    #     "--fps",
+    #     default=24,
+    #     help="Simulation video FPS. Ignored if VIDEO-OUT is not provided",
+    #     type=int,
+    # )
 
     return parser.parse_args()
 
@@ -99,24 +105,29 @@ if __name__ == "__main__":
     c = args.velocity
     damping = args.obstacle_damping
     delay = args.activation_delay
-    y_offset = args.transducer_offset
+    transducer_y_offset = args.transducer_offset
+    reflector_y_offset = args.reflector_offset
     mu = args.mu
     sigma = args.sigma
 
-    Tx = int(N / 4) + np.linspace(
-        0, int((N - 1) / 2), num=Tc, dtype=int
-    )  # transducer x positions
+    # transducer x positions
+    Tx = int(N / 4) + np.linspace(0, int((N - 1) / 2), num=Tc, dtype=int)
     mid = int(N / 2)
     half = int(Tc / 2)
     Tx = np.arange(mid - half, mid + half, 1)
-    Ty = int(y_offset * N)  # transducer y positions
+    Ty = int(transducer_y_offset * N)  # transducer y positions
     t = np.arange(T)  # time axis
     delays = np.arange(Tc) * delay
 
-    freq = 1 / args.frequency_reciprocal
+    freq = 1 / args.period
     gaussian = gaussian_source(t, mu, sigma)
     sinusoidal = sinusoidal_source(t, freq)
     source = gaussian * sinusoidal
+
+    def _source(t: int, coords: tuple[int, int]):
+        s = np.zeros((N, N))
+        s[coords] = source[t]
+        return s
 
     if args.show_source:
         plt.plot(t, source)
@@ -125,47 +136,38 @@ if __name__ == "__main__":
     simulations = []
 
     if not args.dry_run:
+        gating_threshold = 0 if not args.gating else args.gating
+
         for i, delay in enumerate(delays):
-            G = np.zeros((T, N, N))  # space grid
-            t = np.arange(T)  # time axis
+            G = np.zeros((N, N))  # space grid
             C = np.full((N, N), c)  # velocities matrix
-            s = np.zeros_like(G)
+            s = np.zeros((T, N, N))
 
             mid = int(N / 2)
-            C[mid, mid] = damping * c
+            C[mid, int(N * reflector_y_offset)] = damping * c
 
             simulation_source = np.hstack((np.zeros(delay), source))[:T]
-            s[:, Ty, Tx[i]] = simulation_source
-            simulation = WavePropagation(G, t, C, [Ty, Tx[i]], s)
+            simulation = WavePropagation(
+                G, T, C, (Ty, Tx[i]), _source, gating_threshold
+            )
             simulations.append(simulation)
 
-        gating_cutoff = 0 if not args.gating else args.gating
-        B_scan = np.zeros((T - gating_cutoff, Tc))
+        B_scan = np.zeros((T - gating_threshold, Tc))
 
-        with ThreadPoolExecutor(max_workers=8) as executor:
+        with ThreadPoolExecutor(max_workers=12) as executor:
             futures = [
-                executor.submit(simulation.simulate) for simulation in simulations
+                executor.submit(
+                    simulation.simulate, True if args.video_out and i == 0 else False
+                )
+                for i, simulation in enumerate(simulations)
             ]
 
             for i, future in enumerate(futures):
                 future.result()
-                B_scan[:, i] = simulations[i].a_scan()[gating_cutoff:]
+                B_scan[:, i] = simulations[i].a_scan
 
         np.save(args.output, B_scan)
 
         if args.preview:
             plt.imshow(np.log10(abs(B_scan) + 1), aspect="auto")
             plt.show()
-
-        if args.video_out:
-            with ThreadPoolExecutor(max_workers=Tc) as executor:
-                filenames = [f"{args.output}{i}.mp4" for i in range(Tc)]
-                futures = [
-                    executor.submit(
-                        simulation.export_video, filename, args.fps, gating_cutoff
-                    )
-                    for simulation, filename in zip(simulations, filenames)
-                ]
-
-                for i, future in enumerate(futures):
-                    future.result()

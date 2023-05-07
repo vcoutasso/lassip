@@ -22,7 +22,7 @@ class WavePropagation:
         self.tp = transducer_pos
         self.s = source
         self.gating = gating
-        self.a_scan = np.zeros(t_max)
+        self.a_scan = np.zeros(t_max - gating)
 
     def laplassian(self, i):
         G_pad = np.pad(self.G[i], (1,))
@@ -50,10 +50,13 @@ class WavePropagation:
                 + self.s(i, self.tp)
             )
 
-            self.a_scan[i] = self.G[-1, self.tp[0], self.tp[1]]
+            if i >= self.gating:
+                idx = i - self.gating
 
-            if video_out and i >= self.gating:
-                frames[i - self.gating] = self.G[-1]
+                self.a_scan[idx] = self.G[-1, self.tp[0], self.tp[1]]
+
+                if video_out:
+                    frames[idx] = self.G[-1]
 
             self.G = np.roll(self.G, -1, axis=0)
 
