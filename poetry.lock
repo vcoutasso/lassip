@@ -1386,7 +1386,6 @@ files = [
 numpy = [
     {version = ">=1.21.2", markers = "python_version >= \"3.10\""},
     {version = ">=1.21.4", markers = "python_version >= \"3.10\" and platform_system == \"Darwin\""},
-    {version = ">=1.22.0", markers = "python_version >= \"3.11\""},
     {version = ">=1.19.3", markers = "python_version >= \"3.6\" and platform_system == \"Linux\" and platform_machine == \"aarch64\" or python_version >= \"3.9\""},
     {version = ">=1.17.0", markers = "python_version >= \"3.7\""},
     {version = ">=1.17.3", markers = "python_version >= \"3.8\""},
@@ -2272,5 +2271,5 @@ files = [
 
 [metadata]
 lock-version = "2.0"
-python-versions = "~3.11"
-content-hash = "8d1bbb920562c7d76287d0edf495de50b15ef62978cd1b5372562bee18a638d3"
+python-versions = "~3.10"
+content-hash = "4514020766a1fedda50ac2ad9152794239f1891d2a04c1290093f9981c4500db"
