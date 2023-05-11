@@ -38,7 +38,7 @@ def _get_args():
     )
     parser.add_argument(
         "--transducer-offset",
-        default=0.4,
+        default=0.33,
         help="Transducer array y-axis offset. Percentage of N",
         type=float,
     )
@@ -62,7 +62,7 @@ def _get_args():
     )
     parser.add_argument(
         "--obstacle-damping",
-        default=0.2,
+        default=0,
         help="Propagation velocity through the obstacle. Percentage of VELOCITY",
         type=float,
     )

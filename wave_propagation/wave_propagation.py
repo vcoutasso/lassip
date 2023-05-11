@@ -25,10 +25,30 @@ class WavePropagation:
         self.a_scan = np.zeros(t_max - gating)
 
     def laplassian(self, i):
-        G_pad = np.pad(self.G[i], (1,))
-        return (
-            G_pad[1:-1, 2:] + G_pad[1:-1, :-2] + G_pad[2:, 1:-1] + G_pad[:-2, 1:-1]
-        ) - 4 * self.G[i]
+        G = self.G[i]
+        lap = np.pad(np.zeros_like(G), (4,))
+
+        lap[0:-8, 4:-4] -= 9 * G
+        lap[1:-7, 4:-4] += 128 * G
+        lap[2:-6, 4:-4] -= 1008 * G
+        lap[3:-5, 4:-4] += 8064 * G
+        lap[4:-4, 4:-4] -= 14350 * G
+        lap[5:-3, 4:-4] += 8064 * G
+        lap[6:-2, 4:-4] -= 1008 * G
+        lap[7:-1, 4:-4] += 128 * G
+        lap[8:, 4:-4] -= 9 * G
+
+        lap[4:-4, 0:-8] -= 9 * G
+        lap[4:-4, 1:-7] += 128 * G
+        lap[4:-4, 2:-6] -= 1008 * G
+        lap[4:-4, 3:-5] += 8064 * G
+        lap[4:-4, 4:-4] -= 14350 * G
+        lap[4:-4, 5:-3] += 8064 * G
+        lap[4:-4, 6:-2] -= 1008 * G
+        lap[4:-4, 7:-1] += 128 * G
+        lap[4:-4, 8:] -= 9 * G
+
+        return lap[4:-4, 4:-4] / 5040
 
     def simulate(self, video_out: bool) -> np.ndarray:
         if video_out:
